@@ -25,32 +25,50 @@ export async function getCollections(): Promise<Collection[]> {
   if (!userId) return [];
   const { data } = await supabase
     .from("collections")
-    .select("*, bookmarks(*)")
+    .select("id, name, created_at")
     .eq("user_token", userId)
     .order("created_at", { ascending: false });
-  return (data ?? []) as Collection[];
+  const collections = (data ?? []) as Omit<Collection, "bookmarks">[];
+  const result: Collection[] = [];
+  for (const c of collections) {
+    const { data: bm } = await supabase
+      .from("bookmarks")
+      .select("id, collection_id, title, url, created_at")
+      .eq("collection_id", c.id)
+      .order("created_at", { ascending: true });
+    result.push({ ...c, bookmarks: (bm ?? []) as Bookmark[] });
+  }
+  return result;
 }
 
 export async function getCollection(id: string): Promise<Collection | null> {
   const userId = await getUserId();
   if (!userId) return null;
-  const { data } = await supabase
+  const { data: col } = await supabase
     .from("collections")
-    .select("*, bookmarks(*)")
+    .select("id, name, created_at")
     .eq("id", id)
     .eq("user_token", userId)
     .single();
-  return data as Collection | null;
+  if (!col) return null;
+  const c = col as Omit<Collection, "bookmarks">;
+  const { data: bm } = await supabase
+    .from("bookmarks")
+    .select("id, collection_id, title, url, created_at")
+    .eq("collection_id", id)
+    .order("created_at", { ascending: true });
+  return { ...c, bookmarks: (bm ?? []) as Bookmark[] };
 }
 
 export async function createCollection(name: string): Promise<Collection> {
   const userId = await getUserId();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("collections")
     .insert({ name, user_token: userId })
-    .select("*, bookmarks(*)")
+    .select("id, name, created_at")
     .single();
-  return data as Collection;
+  if (error) throw error;
+  return { ...(data as Omit<Collection, "bookmarks">), bookmarks: [] };
 }
 
 export async function deleteCollection(id: string): Promise<void> {
@@ -67,11 +85,12 @@ export async function addBookmark(
   title: string,
   url: string
 ): Promise<Bookmark> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("bookmarks")
     .insert({ collection_id: collectionId, title, url })
-    .select()
+    .select("id, collection_id, title, url, created_at")
     .single();
+  if (error) throw error;
   return data as Bookmark;
 }
 

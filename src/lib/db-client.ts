@@ -1,4 +1,9 @@
-import { supabase } from "@/lib/supabase/client";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export interface Collection {
   id: string;
@@ -15,22 +20,27 @@ export interface Bookmark {
   created_at: string;
 }
 
-async function getUserId(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.user?.id ?? null;
+let _userToken: string | null = null;
+
+export function setUserToken(token: string | null) {
+  _userToken = token;
+}
+
+function token(): string {
+  return _userToken ?? "";
 }
 
 export async function getCollections(): Promise<Collection[]> {
-  const userId = await getUserId();
-  if (!userId) return [];
+  const t = token();
+  if (!t) return [];
   const { data } = await supabase
     .from("collections")
     .select("id, name, created_at")
-    .eq("user_token", userId)
+    .eq("user_token", t)
     .order("created_at", { ascending: false });
-  const collections = (data ?? []) as Omit<Collection, "bookmarks">[];
+  const cols = (data ?? []) as Omit<Collection, "bookmarks">[];
   const result: Collection[] = [];
-  for (const c of collections) {
+  for (const c of cols) {
     const { data: bm } = await supabase
       .from("bookmarks")
       .select("id, collection_id, title, url, created_at")
@@ -42,13 +52,13 @@ export async function getCollections(): Promise<Collection[]> {
 }
 
 export async function getCollection(id: string): Promise<Collection | null> {
-  const userId = await getUserId();
-  if (!userId) return null;
+  const t = token();
+  if (!t) return null;
   const { data: col } = await supabase
     .from("collections")
     .select("id, name, created_at")
     .eq("id", id)
-    .eq("user_token", userId)
+    .eq("user_token", t)
     .single();
   if (!col) return null;
   const c = col as Omit<Collection, "bookmarks">;
@@ -61,10 +71,10 @@ export async function getCollection(id: string): Promise<Collection | null> {
 }
 
 export async function createCollection(name: string): Promise<Collection> {
-  const userId = await getUserId();
+  const t = token();
   const { data, error } = await supabase
     .from("collections")
-    .insert({ name, user_token: userId })
+    .insert({ name, user_token: t })
     .select("id, name, created_at")
     .single();
   if (error) throw error;
@@ -72,12 +82,12 @@ export async function createCollection(name: string): Promise<Collection> {
 }
 
 export async function deleteCollection(id: string): Promise<void> {
-  const userId = await getUserId();
+  const t = token();
   await supabase
     .from("collections")
     .delete()
     .eq("id", id)
-    .eq("user_token", userId);
+    .eq("user_token", t);
 }
 
 export async function addBookmark(

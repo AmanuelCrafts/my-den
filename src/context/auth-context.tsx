@@ -1,12 +1,12 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from "react";
-import { supabase } from "@/lib/supabase/client";
+import { setUserToken } from "@/lib/db-client";
 
 interface AuthContextType {
   isAuthenticated: boolean;
   login: (password: string) => Promise<boolean>;
-  logout: () => Promise<void>;
+  logout: () => void;
   loading: boolean;
 }
 
@@ -14,27 +14,35 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const PASSWORD = process.env.NEXT_PUBLIC_APP_PASSWORD ?? "Gon_123)";
 const INACTIVITY_MS = 15 * 60 * 1000;
 
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const clearSession = useCallback(async () => {
+  const clearAuth = useCallback(() => {
+    setUserToken(null);
     setIsAuthenticated(false);
-    await supabase.auth.signOut();
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
   }, []);
 
   const resetTimer = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      clearSession();
-    }, INACTIVITY_MS);
-  }, [clearSession]);
+    timerRef.current = setTimeout(clearAuth, INACTIVITY_MS);
+  }, [clearAuth]);
 
-  useEffect(() => {
-    supabase.auth.signOut().finally(() => setLoading(false));
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, []);
+  useEffect(() => setLoading(false), []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -50,15 +58,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (password: string): Promise<boolean> => {
     if (password !== PASSWORD) return false;
-    const { error } = await supabase.auth.signInAnonymously();
-    if (error) return false;
+    const token = await hashPassword(password);
+    setUserToken(token);
     setIsAuthenticated(true);
+    resetTimer();
     return true;
-  }, []);
+  }, [resetTimer]);
 
-  const logout = useCallback(async () => {
-    await clearSession();
-  }, [clearSession]);
+  const logout = useCallback(() => {
+    clearAuth();
+  }, [clearAuth]);
 
   return (
     <AuthContext.Provider value={{ isAuthenticated, login, logout, loading }}>

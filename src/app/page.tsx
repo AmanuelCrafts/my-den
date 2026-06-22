@@ -6,13 +6,14 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function Home() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (isAuthenticated) router.replace("/dashboard");
-  }, [isAuthenticated, router]);
+    if (!loading && isAuthenticated) router.replace("/dashboard");
+  }, [loading, isAuthenticated, router]);
 
+  if (loading) return null;
   if (isAuthenticated) return null;
   return <PasswordGate />;
 }

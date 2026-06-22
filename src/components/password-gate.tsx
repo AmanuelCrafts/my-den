@@ -8,10 +8,10 @@ export function PasswordGate() {
   const [error, setError] = useState(false);
   const { login } = useAuth();
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(false);
-    const ok = login(password);
+    const ok = await login(password);
     if (ok) setPassword("");
     else setError(true);
   }

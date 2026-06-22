@@ -8,15 +8,15 @@ import { Header } from "@/components/header";
 import { getCollections, createCollection, deleteCollection, type Collection } from "@/lib/db-client";
 
 export default function Dashboard() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) router.replace("/");
-  }, [isAuthenticated, router]);
+    if (!loading && !isAuthenticated) router.replace("/");
+  }, [loading, isAuthenticated, router]);
 
   const load = useCallback(async () => {
     const data = await getCollections();
@@ -41,7 +41,7 @@ export default function Dashboard() {
     await load();
   }
 
-  if (!isAuthenticated) return null;
+  if (loading || !isAuthenticated) return null;
 
   return (
     <>

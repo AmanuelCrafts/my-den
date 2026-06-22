@@ -1,3 +1,5 @@
+import { supabase } from "@/lib/supabase/client";
+
 export interface Collection {
   id: string;
   name: string;
@@ -13,49 +15,51 @@ export interface Bookmark {
   created_at: string;
 }
 
-const TOKEN_KEY = "myden-token";
-
-function getToken(): string {
-  if (typeof window === "undefined") return "";
-  let token = localStorage.getItem(TOKEN_KEY);
-  if (!token) {
-    token = crypto.randomUUID();
-    localStorage.setItem(TOKEN_KEY, token);
-  }
-  return token;
-}
-
-async function api(path: string, options?: RequestInit) {
-  const res = await fetch(path, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      "x-user-token": getToken(),
-      ...options?.headers,
-    },
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+async function getUserId(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user?.id ?? null;
 }
 
 export async function getCollections(): Promise<Collection[]> {
-  return api("/api/collections");
+  const userId = await getUserId();
+  if (!userId) return [];
+  const { data } = await supabase
+    .from("collections")
+    .select("*, bookmarks(*)")
+    .eq("user_token", userId)
+    .order("created_at", { ascending: false });
+  return (data ?? []) as Collection[];
 }
 
 export async function getCollection(id: string): Promise<Collection | null> {
-  const data = await api(`/api/collections/${id}`);
-  return data ?? null;
+  const userId = await getUserId();
+  if (!userId) return null;
+  const { data } = await supabase
+    .from("collections")
+    .select("*, bookmarks(*)")
+    .eq("id", id)
+    .eq("user_token", userId)
+    .single();
+  return data as Collection | null;
 }
 
 export async function createCollection(name: string): Promise<Collection> {
-  return api("/api/collections", {
-    method: "POST",
-    body: JSON.stringify({ name }),
-  });
+  const userId = await getUserId();
+  const { data } = await supabase
+    .from("collections")
+    .insert({ name, user_token: userId })
+    .select("*, bookmarks(*)")
+    .single();
+  return data as Collection;
 }
 
 export async function deleteCollection(id: string): Promise<void> {
-  await api(`/api/collections/${id}`, { method: "DELETE" });
+  const userId = await getUserId();
+  await supabase
+    .from("collections")
+    .delete()
+    .eq("id", id)
+    .eq("user_token", userId);
 }
 
 export async function addBookmark(
@@ -63,12 +67,14 @@ export async function addBookmark(
   title: string,
   url: string
 ): Promise<Bookmark> {
-  return api("/api/bookmarks", {
-    method: "POST",
-    body: JSON.stringify({ collectionId, title, url }),
-  });
+  const { data } = await supabase
+    .from("bookmarks")
+    .insert({ collection_id: collectionId, title, url })
+    .select()
+    .single();
+  return data as Bookmark;
 }
 
 export async function deleteBookmark(id: string): Promise<void> {
-  await api(`/api/bookmarks?id=${id}`, { method: "DELETE" });
+  await supabase.from("bookmarks").delete().eq("id", id);
 }

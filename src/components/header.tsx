@@ -8,8 +8,8 @@ export function Header() {
   const { logout } = useAuth();
   const router = useRouter();
 
-  function handleLock() {
-    logout();
+  async function handleLock() {
+    await logout();
     router.replace("/");
   }
 

@@ -32,11 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
-
-# database
-/data.db
-/data.db-wal
-/data.db-shm
+!.env.example
 
 # vercel
 .vercel
@@ -44,5 +40,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-/src/generated/prisma

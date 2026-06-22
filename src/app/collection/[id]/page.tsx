@@ -9,7 +9,7 @@ import { AddUrlForm } from "@/components/add-url-form";
 import { getCollection, addBookmark, deleteBookmark, type Collection } from "@/lib/db-client";
 
 export default function CollectionPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
@@ -22,8 +22,8 @@ export default function CollectionPage() {
   }, [id, router]);
 
   useEffect(() => {
-    if (!isAuthenticated) router.replace("/");
-  }, [isAuthenticated, router]);
+    if (!loading && !isAuthenticated) router.replace("/");
+  }, [loading, isAuthenticated, router]);
 
   useEffect(() => {
     if (isAuthenticated) load();
@@ -39,7 +39,7 @@ export default function CollectionPage() {
     await load();
   }
 
-  if (!isAuthenticated || !collection) return null;
+  if (loading || !isAuthenticated || !collection) return null;
 
   function getDomain(u: string) {
     try { return new URL(u).hostname.replace("www.", ""); }
